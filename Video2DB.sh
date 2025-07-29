@@ -22,13 +22,13 @@ if [ ! -d "$DIRECTORY" ]; then
 fi
 
 # Check if mediainfo is installed
-if ! command -v mediainfo &> /dev/null; then
-    echo "Error: mediainfo is not installed. Install it using 'brew install mediainfo'."
+if ! command -v /opt/homebrew/bin/mediainfo &> /dev/null; then
+    echo "Error: /opt/homebrew/bin/mediainfo is not installed. Install it using 'brew install mediainfo'."
     exit 1
 fi
 
 # Create SQLite database and table if not exists
-sqlite3 "$DB_FILE" <<EOF
+sqlite3 /tmp/VidIndex.db <<EOF
 CREATE TABLE IF NOT EXISTS videos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL,
@@ -56,7 +56,7 @@ process_videos() {
         escaped_filename=$(echo "$filename" | sed "s/'/''/g")
 
         # Insert into SQLite database
-        sqlite3 "$DB_FILE" "INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');"
+        sqlite3 /tmp/VidIndex.db "INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');"
         echo "Added: $filename (Size: $size bytes, Resolution: $resolution)"
-    done < <(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
+    done <<(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
 }
