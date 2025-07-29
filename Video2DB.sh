@@ -58,5 +58,10 @@ process_videos() {
         # Insert into SQLite database
         sqlite3 /tmp/VidIndex.db "INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');"
         echo "Added: $filename (Size: $size bytes, Resolution: $resolution)"
-    done <<(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
+    done < <(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
 }
+# Run the function
+process_videos
+
+echo "Database updated: $DB_FILE"
+echo "To view the data, use: sqlite3 $DB_FILE 'SELECT * FROM videos;'"
