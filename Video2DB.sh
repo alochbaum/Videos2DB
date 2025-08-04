@@ -41,26 +41,31 @@ EOF
 # Testing Find function
 #echo starting bigtest
 
-echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
+echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.flv" -o -iname "*.avi" -o -iname "*.wmv" \))
 
 # Function to process video files
 function process_videos() {
 # Loop through common video file extensions
-for file in "$FOLDER"/*.{mp4,mov,avi,mkv,wmv}; do
+for file in "$DIRECTORY"/*.{mp4,mov,avi,mkv,wmv}; do
     # Check if file exists (handles case when no files match extension)
     if [[ -f "$file" ]]; then
-           size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
-           # Get video resolution using mediainfo
+        # Get file size in bytes
+        size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
+        
+        # Get video resolution using mediainfo
         resolution=$(mediainfo --Inform="Video;%Width%x%Height%" "$file" 2>/dev/null)
         if [ -z "$resolution" ]; then
             resolution="Unknown"
         fi
 
         # Escape single quotes in filename for SQLite
+        filename=$(basename "$file")
         escaped_filename=$(echo "$filename" | sed "s/'/''/g")
 
         # Insert into SQLite database
-        sqlite3 /tmp/VidIndex.db "INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');"
+        sqlite3 /tmp/VidIndex.db <<EOF
+        INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');
+EOF
         echo "Added: $filename (Size: $size bytes, Resolution: $resolution)"
     fi
 done
