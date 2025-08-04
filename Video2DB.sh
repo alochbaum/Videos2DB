@@ -32,8 +32,11 @@ sqlite3 /tmp/VidIndex.db <<EOF
 CREATE TABLE IF NOT EXISTS videos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL,
+    title TEXT NOT NULL,
+    directory TEXT NOT NULL,
     size INTEGER NOT NULL,
     resolution TEXT,
+    duration TEXT
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 EOF
@@ -41,12 +44,12 @@ EOF
 # Testing Find function
 #echo starting bigtest
 
-echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.flv" -o -iname "*.avi" -o -iname "*.wmv" \))
+# echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.flv" -o -iname "*.avi" -o -iname "*.wmv" \))
 
 # Function to process video files
 function process_videos() {
 # Loop through common video file extensions
-for file in "$DIRECTORY"/*.{mp4,mov,avi,mkv,wmv}; do
+for file in "$DIRECTORY"/*.{mp4,mov,avi,mpg,flv,mkv,wmv}; do
     # Check if file exists (handles case when no files match extension)
     if [[ -f "$file" ]]; then
         # Get file size in bytes
@@ -58,15 +61,28 @@ for file in "$DIRECTORY"/*.{mp4,mov,avi,mkv,wmv}; do
             resolution="Unknown"
         fi
 
+        # Get video duration using mediainfo
+        duration=$(mediainfo --Inform="General;%Duration/String3%" "$file" 2>/dev/null)
+        if [ -z "$duration" ]; then
+            duration="0"
+        fi
+
+        # Get video title using mediainfo
+        title=$(mediainfo --Inform="General;%Title%" "$file" 2>/dev/null)
+        if [ -z "$title" ]; then
+            title="_"
+        fi
+
+
         # Escape single quotes in filename for SQLite
         filename=$(basename "$file")
         escaped_filename=$(echo "$filename" | sed "s/'/''/g")
 
         # Insert into SQLite database
         sqlite3 /tmp/VidIndex.db <<EOF
-        INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');
+        INSERT INTO videos (filename, title, directory, size, resolution, duration) VALUES ('$escaped_filename', '$title', '$DIRECTORY', $size, '$resolution', '$duration');
 EOF
-        echo "Added: $filename (Size: $size bytes, Resolution: $resolution)"
+        echo "Added: $filename Title: $title Dir: $DIRECTORY Sz: $size bytes, Res: $resolution Dur: $duration"
     fi
 done
 }
