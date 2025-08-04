@@ -38,15 +38,19 @@ CREATE TABLE IF NOT EXISTS videos (
 );
 EOF
 
-# Function to process video files
-process_videos() {
-    # Use find to iterate through video files (common video extensions)
-    while IFS= read -r file; do
-        # Get file name and size
-        filename=$(basename "$file")
-        size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
+# Testing Find function
+#echo starting bigtest
 
-        # Get video resolution using mediainfo
+echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
+
+# Function to process video files
+function process_videos() {
+# Loop through common video file extensions
+for file in "$FOLDER"/*.{mp4,mov,avi,mkv,wmv}; do
+    # Check if file exists (handles case when no files match extension)
+    if [[ -f "$file" ]]; then
+           size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
+           # Get video resolution using mediainfo
         resolution=$(mediainfo --Inform="Video;%Width%x%Height%" "$file" 2>/dev/null)
         if [ -z "$resolution" ]; then
             resolution="Unknown"
@@ -58,10 +62,16 @@ process_videos() {
         # Insert into SQLite database
         sqlite3 /tmp/VidIndex.db "INSERT INTO videos (filename, size, resolution) VALUES ('$escaped_filename', $size, '$resolution');"
         echo "Added: $filename (Size: $size bytes, Resolution: $resolution)"
-    done < <(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" \))
+    fi
+done
 }
-# Run the function
-process_videos
 
+# Run the function
+echo starting to run process_videos
+process_videos
+echo finished running process_videos
+
+# Report success
 echo "Database updated: $DB_FILE"
 echo "To view the data, use: sqlite3 $DB_FILE 'SELECT * FROM videos;'"
+
