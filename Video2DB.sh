@@ -44,6 +44,8 @@ EOF
 # Testing Find function
 #echo starting bigtest
 
+# Need to add a delete records function to remove records with same $DIRECTORY
+
 # echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.flv" -o -iname "*.avi" -o -iname "*.wmv" \))
 
 # Function to process video files
