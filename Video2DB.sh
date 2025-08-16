@@ -1,10 +1,12 @@
-#
+#!/bin/bash
+:'
 //  Video2DB.sh
 //  
 //
 //  Created by Andrew Lochbaum on 7/25/25.
 //
-#!/bin/bash
+'
+
 
 # Check if directory is provided as an argument
 if [ $# -ne 1 ]; then
