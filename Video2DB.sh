@@ -1,11 +1,9 @@
 #!/bin/bash
-:'
 //  Video2DB.sh
 //  
 //
 //  Created by Andrew Lochbaum on 7/25/25.
 //
-'
 
 
 # Check if directory is provided as an argument
@@ -15,7 +13,7 @@ if [ $# -ne 1 ]; then
 fi
 
 DIRECTORY=$1
-DB_FILE="video_info.db"
+DB_FILE="/tmp/VidIndex.db"
 
 # Check if directory exists
 if [ ! -d "$DIRECTORY" ]; then
@@ -43,12 +41,12 @@ CREATE TABLE IF NOT EXISTS videos (
 );
 EOF
 
-# Testing Find function
-#echo starting bigtest
-
-# Need to add a delete records function to remove records with same $DIRECTORY
-
-# echo $(find "$DIRECTORY" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.flv" -o -iname "*.avi" -o -iname "*.wmv" \))
+function clear_directory() {
+    sqlite3 /tmp/VidIndex.db <<EOF
+    DELETE FROM videos WHERE directory = '$DIRECTORY';
+EOF
+echo "DELETE FROM videos WHERE directory = '$DIRECTORY';"
+}
 
 # Function to process video files
 function process_videos() {
@@ -91,7 +89,9 @@ EOF
 done
 }
 
-# Run the function
+# Run the functions
+echo "Deleting any record with a directory of $DIRECTORY"
+clear_directory
 echo starting to run process_videos
 process_videos
 echo finished running process_videos
