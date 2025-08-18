@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS videos (
     title TEXT NOT NULL,
     directory TEXT NOT NULL,
     size INTEGER NOT NULL,
+    mod_date INTEGER NOT NULL,
     resolution TEXT,
     duration TEXT
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -56,6 +57,10 @@ for file in "$DIRECTORY"/*.{mp4,mov,avi,mpg,flv,mkv,wmv}; do
     if [[ -f "$file" ]]; then
         # Get file size in bytes
         size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
+
+        # Get file modified date using stat as long integer
+        mod_date=$(stat -f %m "$file")
+    
         
         # Get video resolution using mediainfo
         resolution=$(mediainfo --Inform="Video;%Width%x%Height%" "$file" 2>/dev/null)
@@ -82,7 +87,7 @@ for file in "$DIRECTORY"/*.{mp4,mov,avi,mpg,flv,mkv,wmv}; do
 
         # Insert into SQLite database
         sqlite3 /tmp/VidIndex.db <<EOF
-        INSERT INTO videos (filename, title, directory, size, resolution, duration) VALUES ('$escaped_filename', '$title', '$DIRECTORY', $size, '$resolution', '$duration');
+        INSERT INTO videos (filename, title, directory, size, mod_date, resolution, duration) VALUES ('$escaped_filename', '$title', '$DIRECTORY', $size, $mod_date, '$resolution', '$duration');
 EOF
         echo "Added: $filename Title: $title Dir: $DIRECTORY Sz: $size bytes, Res: $resolution Dur: $duration"
     fi
