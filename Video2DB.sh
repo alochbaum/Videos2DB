@@ -14,7 +14,9 @@
 #   Video2DB.sh <directory_path>
 #
 # Database:
-#   /tmp/VidIndex.db    table: videos
+#   /tmp/VidIndex.db
+#     videos   one row per clip
+#     dsize    one row per scanned directory (free space and scan time)
 
 set -euo pipefail
 
@@ -92,6 +94,13 @@ CREATE TABLE IF NOT EXISTS videos (
 );
 -- Every refresh deletes by directory, so keep that lookup indexed.
 CREATE INDEX IF NOT EXISTS idx_videos_directory ON videos(directory);
+-- One row per directory. CREATE TABLE IF NOT EXISTS leaves an
+-- existing database's videos rows alone and only adds dsize.
+CREATE TABLE IF NOT EXISTS dsize (
+    directory TEXT PRIMARY KEY,
+    free_MB INTEGER NOT NULL,
+    scanned TIMESTAMP NOT NULL
+);
 EOF
 
     # CREATE TABLE IF NOT EXISTS does not alter a database that already
@@ -133,13 +142,52 @@ read_media_fields() {
     fi
 }
 
+# Free megabytes on the volume that holds this directory.
+# The column is free_MB, so the value is whole megabytes, not bytes.
+# df -m uses 1,048,576-byte blocks on macOS and on GNU df.
+# The flag order is -Pm on purpose: macOS df sets a 512-byte block
+# size when -P is the later flag, and -P drops the iused columns.
+# Available is taken by header name (Available on macOS, Avail on
+# older df) so a shift in later columns cannot change the number.
+read_free_mb() {
+    local target=$1
+
+    LC_ALL=C df -Pm "$target" | awk '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "Available" || $i == "Avail") {
+                    column = i
+                }
+            }
+            next
+        }
+        NR == 2 && column > 0 {
+            print $column
+            exit
+        }
+    '
+}
+
 # Write one transaction for this directory: delete the old rows, then
 # insert the files that are there now. A single sqlite3 process applies
 # the whole batch, instead of launching sqlite3 once per file.
+# The same transaction upserts dsize, keyed by the canonical path.
 # Progress lines go to stderr because this function's stdout is the count.
 build_batch() {
-    local file ext filename size mod_date
+    local file ext filename size mod_date free_mb
     local count=0
+
+    # Fail before writing SQL if df output is not a plain integer.
+    # free_mb is interpolated into the statement only after this check.
+    free_mb=$(read_free_mb "$DIRECTORY") || {
+        echo "Error: Could not read free space for '$DIRECTORY'." >&2
+        exit 1
+    }
+    if [[ ! "$free_mb" =~ ^[0-9]+$ ]]; then
+        echo "Error: Could not read free space for '$DIRECTORY'." >&2
+        exit 1
+    fi
+    echo "Volume free space: $free_mb MB" >&2
 
     # nullglob drops patterns that match nothing, instead of leaving the
     # literal "*.mp4" string. nocaseglob covers uppercase extensions.
@@ -180,6 +228,14 @@ build_batch() {
             done
         done
 
+        # directory is the primary key, so a later scan updates this row
+        # instead of inserting another one. scanned is local time;
+        # SQLite's bare CURRENT_TIMESTAMP is UTC.
+        echo "INSERT INTO dsize (directory, free_MB, scanned) VALUES ($(sql_quote "$DIRECTORY"), $free_mb, datetime('now', 'localtime'))"
+        echo "    ON CONFLICT(directory) DO UPDATE SET"
+        echo "        free_MB = excluded.free_MB,"
+        echo "        scanned = excluded.scanned;"
+
         echo "COMMIT;"
     } >"$SQL_BATCH"
 
@@ -215,3 +271,4 @@ sqlite3 -cmd ".timeout 5000" "$DB_FILE" <"$SQL_BATCH"
 echo "Finished indexing $indexed_count file(s)."
 echo "Database updated: $DB_FILE"
 echo "To view the data, use: sqlite3 $DB_FILE 'SELECT * FROM videos;'"
+echo "To view free space, use: sqlite3 $DB_FILE 'SELECT * FROM dsize;'"
