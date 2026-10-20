@@ -1,9 +1,7 @@
 #!/bin/bash
-//  Video2DB.sh
-//  
-//
-//  Created by Andrew Lochbaum on 7/25/25.
-//
+# Video2DB.sh
+#
+# Created by Andrew Lochbaum on 7/25/25.
 
 
 # Check if directory is provided as an argument
@@ -21,9 +19,13 @@ if [ ! -d "$DIRECTORY" ]; then
     exit 1
 fi
 
-# Check if mediainfo is installed
-if ! command -v /opt/homebrew/bin/mediainfo &> /dev/null; then
-    echo "Error: /opt/homebrew/bin/mediainfo is not installed. Install it using 'brew install mediainfo'."
+# Check if mediainfo is installed (Homebrew on macOS, or anywhere on PATH).
+if command -v mediainfo >/dev/null 2>&1; then
+    MEDIAINFO="$(command -v mediainfo)"
+elif [ -x /opt/homebrew/bin/mediainfo ]; then
+    MEDIAINFO="/opt/homebrew/bin/mediainfo"
+else
+    echo "Error: mediainfo is not installed. Install it using 'brew install mediainfo' or your system package manager."
     exit 1
 fi
 
@@ -37,7 +39,7 @@ CREATE TABLE IF NOT EXISTS videos (
     size INTEGER NOT NULL,
     mod_date INTEGER NOT NULL,
     resolution TEXT,
-    duration TEXT
+    duration TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 EOF
@@ -55,27 +57,30 @@ function process_videos() {
 for file in "$DIRECTORY"/*.{mp4,mov,avi,mpg,flv,mkv,wmv}; do
     # Check if file exists (handles case when no files match extension)
     if [[ -f "$file" ]]; then
-        # Get file size in bytes
-        size=$(stat -f %z "$file") # macOS-specific stat command for file size in bytes
-
-        # Get file modified date using stat as long integer
-        mod_date=$(stat -f %m "$file")
+        # File size and mtime. macOS stat uses -f; GNU stat uses -c.
+        if [ "$(uname -s)" = "Darwin" ]; then
+            size=$(stat -f %z "$file")
+            mod_date=$(stat -f %m "$file")
+        else
+            size=$(stat -c %s "$file")
+            mod_date=$(stat -c %Y "$file")
+        fi
     
         
         # Get video resolution using mediainfo
-        resolution=$(mediainfo --Inform="Video;%Width%x%Height%" "$file" 2>/dev/null)
+        resolution=$("$MEDIAINFO" --Inform="Video;%Width%x%Height%" "$file" 2>/dev/null)
         if [ -z "$resolution" ]; then
             resolution="Unknown"
         fi
 
         # Get video duration using mediainfo
-        duration=$(mediainfo --Inform="General;%Duration/String3%" "$file" 2>/dev/null)
+        duration=$("$MEDIAINFO" --Inform="General;%Duration/String3%" "$file" 2>/dev/null)
         if [ -z "$duration" ]; then
             duration="0"
         fi
 
         # Get video title using mediainfo
-        title=$(mediainfo --Inform="General;%Title%" "$file" 2>/dev/null)
+        title=$("$MEDIAINFO" --Inform="General;%Title%" "$file" 2>/dev/null)
         if [ -z "$title" ]; then
             title="_"
         fi
